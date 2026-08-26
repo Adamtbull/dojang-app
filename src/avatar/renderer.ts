@@ -175,29 +175,15 @@ function wrapHinge(
   const inner = innerBisector(a, b, c);
   const outer = { x: -inner.x, y: -inner.y };
 
-  fillDisk(ctx, b, puff, color);
+  fillDisk(ctx, b, Math.max(rJoint, rIn, rOut) * (1.02 + bend * 0.08) + inflate, color);
 
-  const cap = add(asPt(b), mul(outer, puff * (0.16 + bend * 0.52)));
-  ctx.beginPath();
-  ctx.ellipse(
-    cap.x,
-    cap.y,
-    puff * (0.92 + bend * 0.48),
-    puff * (0.54 + bend * 0.3),
-    Math.atan2(outer.y, outer.x),
-    0,
-    Math.PI * 2,
-  );
-  ctx.fillStyle = color;
-  ctx.fill();
+  const pit = add(asPt(b), mul(inner, puff * (0.08 + bend * 0.4)));
+  fillDisk(ctx, pit, puff * (0.48 + bend * 0.42), color);
 
-  const pit = add(asPt(b), mul(inner, puff * (0.06 + bend * 0.36)));
-  fillDisk(ctx, pit, puff * (0.56 + bend * 0.48), color);
-
-  if (bend > 0.04) {
-    const midA = lerpPt(a, b, 0.64);
-    const midC = lerpPt(b, c, 0.36);
-    const peak = add(asPt(b), mul(outer, puff * (0.72 + bend * 1.05)));
+  if (bend > 0.12) {
+    const midA = lerpPt(a, b, 0.55);
+    const midC = lerpPt(b, c, 0.45);
+    const peak = add(asPt(b), mul(outer, puff * (0.28 + bend * 0.35)));
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(midA.x, midA.y);
@@ -205,17 +191,6 @@ function wrapHinge(
     ctx.lineTo(b.x, b.y);
     ctx.closePath();
     ctx.fill();
-
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = puff * (1.45 + bend * 0.6);
-    ctx.beginPath();
-    ctx.moveTo(midA.x, midA.y);
-    ctx.quadraticCurveTo(peak.x, peak.y, midC.x, midC.y);
-    ctx.stroke();
-    ctx.restore();
   }
 }
 
@@ -250,58 +225,63 @@ interface LimbNode {
   r: number;
 }
 
-/**
- * Simple volumes plus extra joint wraps. Capsules are the starting shapes;
- * the hose and hinge wrap hide the puppet seams the way a cartoon sleeve does.
- */
-function stampLimbUnion(
+function strokeChain(
   ctx: CanvasRenderingContext2D,
   nodes: LimbNode[],
   color: string,
+  width: number,
 ): void {
   if (nodes.length < 2) return;
-
+  const start = nodes[0];
+  if (!start) return;
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  const hinge = nodes.length > 2 ? Math.max(...nodes.slice(1, -1).map((n) => n.r)) : nodes[0]!.r;
-  ctx.lineWidth = hinge * 2.35;
+  ctx.lineWidth = Math.max(2, width);
   ctx.beginPath();
-  const start = nodes[0];
-  if (start) ctx.moveTo(start.p.x, start.p.y);
+  ctx.moveTo(start.p.x, start.p.y);
   for (let i = 1; i < nodes.length; i++) {
     const n = nodes[i];
     if (n) ctx.lineTo(n.p.x, n.p.y);
   }
   ctx.stroke();
-  for (let i = 0; i < nodes.length - 1; i++) {
-    const a = nodes[i];
-    const b = nodes[i + 1];
-    if (!a || !b) continue;
-    ctx.lineWidth = a.r + b.r;
-    ctx.beginPath();
-    ctx.moveTo(a.p.x, a.p.y);
-    ctx.lineTo(b.p.x, b.p.y);
-    ctx.stroke();
-  }
   ctx.restore();
+}
+
+function hingeWidth(nodes: LimbNode[]): number {
+  const interior = nodes.slice(1, -1).map((n) => n.r);
+  if (interior.length > 0) return Math.max(...interior) * 2.2;
+  const a = nodes[0];
+  const b = nodes[nodes.length - 1];
+  return ((a?.r ?? 8) + (b?.r ?? 8)) * 1.05;
+}
+
+/**
+ * Simple volumes plus extra joint wraps. Capsules are fill-only extras;
+ * the round-join hose is what the outline follows.
+ */
+function stampLimbFill(ctx: CanvasRenderingContext2D, nodes: LimbNode[], color: string): void {
+  if (nodes.length < 2) return;
+  const hinge = hingeWidth(nodes) / 2;
+
+  strokeChain(ctx, nodes, color, hinge * 2);
 
   for (let i = 0; i < nodes.length - 1; i++) {
     const a = nodes[i];
     const b = nodes[i + 1];
     if (!a || !b) continue;
-    const overlap = Math.min(a.r, b.r) * 0.82;
-    const root = i === 0 ? Math.max(overlap, a.r * 0.45) : overlap;
-    const tip = i === nodes.length - 2 ? Math.max(overlap * 0.4, b.r * 0.22) : overlap;
-    const [p0, p1] = extendBone(a.p, b.p, root, tip);
+    const extraA = i === 0 ? a.r * 0.3 : -hinge * 0.55;
+    const extraB = i === nodes.length - 2 ? b.r * 0.18 : -hinge * 0.55;
+    const [p0, p1] = extendBone(a.p, b.p, extraA, extraB);
+    if (Math.hypot(p1.x - p0.x, p1.y - p0.y) < 4) continue;
     limbShape(ctx, p0, p1, a.r, b.r, color);
   }
 
   const first = nodes[0];
   const last = nodes[nodes.length - 1];
-  if (first) fillDisk(ctx, first.p, first.r, color);
-  if (last) fillDisk(ctx, last.p, last.r * 1.06, color);
+  if (first) fillDisk(ctx, first.p, Math.max(first.r, hinge * 0.92), color);
+  if (last) fillDisk(ctx, last.p, Math.max(last.r * 1.05, hinge * 0.85), color);
 
   for (let i = 1; i < nodes.length - 1; i++) {
     const prev = nodes[i - 1];
@@ -312,26 +292,9 @@ function stampLimbUnion(
   }
 }
 
-/** Draw the limb union offset in a ring so the later fill pass leaves one outline. */
-function stampDilatedUnion(
-  ctx: CanvasRenderingContext2D,
-  nodes: LimbNode[],
-  color: string,
-  radius: number,
-): void {
-  const steps = 20;
-  for (let i = 0; i < steps; i++) {
-    const ang = (Math.PI * 2 * i) / steps;
-    ctx.save();
-    ctx.translate(Math.cos(ang) * radius, Math.sin(ang) * radius);
-    stampLimbUnion(ctx, nodes, color);
-    ctx.restore();
-  }
-}
-
 /**
- * Cartoon limb: start with tapered shapes, wrap extra volume over the hinges,
- * then ink only the outer silhouette so elbows/knees never show a puppet gap.
+ * Cartoon limb: a round-join hose is the connected silhouette, then extra
+ * volume is filled on top so joints stretch like a cartoon sleeve.
  */
 function drawCartoonLimb(
   ctx: CanvasRenderingContext2D,
@@ -342,10 +305,11 @@ function drawCartoonLimb(
   lineW: number,
 ): void {
   if (nodes.length < 2) return;
-  const pad = Math.max(2, lineW);
+  const pad = Math.max(2.4, lineW);
+  const width = hingeWidth(nodes);
 
-  stampDilatedUnion(ctx, nodes, outline, pad);
-  stampLimbUnion(ctx, nodes, fill);
+  strokeChain(ctx, nodes, outline, width + pad * 2);
+  stampLimbFill(ctx, nodes, fill);
 
   for (let i = 1; i < nodes.length - 1; i++) {
     const prev = nodes[i - 1];
