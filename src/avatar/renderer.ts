@@ -194,15 +194,23 @@ function wrapHinge(
   const pit = add(asPt(b), mul(inner, puff * (0.06 + bend * 0.36)));
   fillDisk(ctx, pit, puff * (0.56 + bend * 0.48), color);
 
-  if (bend > 0.05) {
-    const midA = lerpPt(a, b, 0.58);
-    const midC = lerpPt(b, c, 0.42);
-    const peak = add(asPt(b), mul(outer, puff * (0.48 + bend * 0.78)));
+  if (bend > 0.04) {
+    const midA = lerpPt(a, b, 0.64);
+    const midC = lerpPt(b, c, 0.36);
+    const peak = add(asPt(b), mul(outer, puff * (0.72 + bend * 1.05)));
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(midA.x, midA.y);
+    ctx.quadraticCurveTo(peak.x, peak.y, midC.x, midC.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.closePath();
+    ctx.fill();
+
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.lineWidth = puff * (1.12 + bend * 0.35);
+    ctx.lineWidth = puff * (1.45 + bend * 0.6);
     ctx.beginPath();
     ctx.moveTo(midA.x, midA.y);
     ctx.quadraticCurveTo(peak.x, peak.y, midC.x, midC.y);
@@ -257,6 +265,16 @@ function stampLimbUnion(
   ctx.strokeStyle = color;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  const hinge = nodes.length > 2 ? Math.max(...nodes.slice(1, -1).map((n) => n.r)) : nodes[0]!.r;
+  ctx.lineWidth = hinge * 2.35;
+  ctx.beginPath();
+  const start = nodes[0];
+  if (start) ctx.moveTo(start.p.x, start.p.y);
+  for (let i = 1; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n) ctx.lineTo(n.p.x, n.p.y);
+  }
+  ctx.stroke();
   for (let i = 0; i < nodes.length - 1; i++) {
     const a = nodes[i];
     const b = nodes[i + 1];
