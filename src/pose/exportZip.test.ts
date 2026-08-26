@@ -44,6 +44,8 @@ describe("export zip", () => {
     const frame = JSON.parse(await zip.file("frames/0000.json")!.async("string"));
     expect(frame.keypoints).toHaveLength(75);
     expect(frame.joints).toHaveLength(25);
+    const openpose = JSON.parse(await zip.file("openpose/000000000000_keypoints.json")!.async("string"));
+    expect(openpose.people[0].pose_keypoints_2d).toHaveLength(75);
   });
 
   it("packs a library with a top-level manifest", async () => {

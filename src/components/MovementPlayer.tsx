@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ViewMode } from "../types";
 import { cn } from "../lib/cn";
 import { AvatarStage } from "./AvatarStage";
 import { usePlayback } from "../hooks/usePlayback";
 import { boundsFromFrames } from "../pose/joints";
+import { smoothFrames } from "../pose/smooth";
 
 interface MovementPlayerProps {
   frames: number[][];
@@ -24,6 +25,7 @@ export function MovementPlayer({
   const [mode, setMode] = useState<ViewMode>(initialMode);
   const videoRef = useRef<HTMLVideoElement>(null);
   const bounds = frames.length > 1 ? boundsFromFrames(frames) : null;
+  const avatarFrames = useMemo(() => smoothFrames(frames), [frames]);
 
   useEffect(() => {
     onFrameChange?.(playback.frame);
@@ -78,7 +80,7 @@ export function MovementPlayer({
               )}
             </div>
             <AvatarStage
-              frames={frames}
+              frames={avatarFrames}
               frame={playback.frame}
               mode="avatar"
               mirror={playback.mirror}
@@ -88,7 +90,7 @@ export function MovementPlayer({
           </div>
         ) : (
           <AvatarStage
-            frames={frames}
+            frames={mode === "avatar" ? avatarFrames : frames}
             frame={playback.frame}
             prevFrame={frames[Math.max(0, playback.frame - 1)]}
             mode={mode}
@@ -98,6 +100,12 @@ export function MovementPlayer({
           />
         )}
       </div>
+
+      {mode === "skeleton" && (
+        <p className="text-[11px] uppercase tracking-wider text-muted">
+          OpenPose BODY_25 limb colors · raw keypoints
+        </p>
+      )}
 
       <PlayerControls
         frame={playback.frame}

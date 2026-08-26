@@ -1,5 +1,5 @@
 import { STAGE } from "./palette";
-import { BONES, J, JOINT_NAMES } from "../pose/landmarks";
+import { BONES, J, JOINT_NAMES, openPoseJointCss } from "../pose/landmarks";
 import {
   fastestExtremity,
   fitJoints,
@@ -11,11 +11,6 @@ import {
 import { inferMissing } from "../pose/infer";
 import { readyStanceKeypoints } from "../pose/readyStance";
 import type { Bounds } from "../types";
-
-const BONE = "#8b97b8";
-const JOINT = "#e8edf7";
-const HOT = "#E5383B";
-const TEAL = "#2DD4A7";
 
 export function drawSkeleton(
   ctx: CanvasRenderingContext2D,
@@ -47,11 +42,21 @@ export function drawSkeleton(
     ctx.stroke();
   }
 
-  const source = !keypoints || isEmptyFrame(keypoints)
-    ? inferMissing(parseJoints(readyStanceKeypoints()))
-    : inferMissing(parseJoints(keypoints));
+  const source =
+    !keypoints || isEmptyFrame(keypoints)
+      ? inferMissing(parseJoints(readyStanceKeypoints()))
+      : inferMissing(parseJoints(keypoints));
   const joints = fitJoints(source, width, height, options.bounds ?? null, options.mirror ?? false, 0.78);
   const hot = fastestExtremity(options.prev, keypoints ?? []);
+  const scale =
+    isPresent(jointAt(joints, J.L_SHOULDER)) && isPresent(jointAt(joints, J.R_SHOULDER))
+      ? Math.hypot(
+          jointAt(joints, J.L_SHOULDER).x - jointAt(joints, J.R_SHOULDER).x,
+          jointAt(joints, J.L_SHOULDER).y - jointAt(joints, J.R_SHOULDER).y,
+        )
+      : Math.min(width, height) * 0.28;
+  const limbW = Math.max(4.5, scale * 0.07);
+  const jointR = Math.max(3.4, scale * 0.045);
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -60,9 +65,9 @@ export function drawSkeleton(
     const q = jointAt(joints, b);
     if (!isPresent(p) || !isPresent(q)) continue;
     const onHot = hot !== null && (a === hot || b === hot);
-    ctx.strokeStyle = onHot ? HOT : BONE;
-    ctx.lineWidth = onHot ? 4 : 2.4;
-    ctx.globalAlpha = Math.min(p.c, q.c) * 0.9 + 0.2;
+    ctx.strokeStyle = onHot ? "#E5383B" : openPoseJointCss(b);
+    ctx.lineWidth = onHot ? limbW * 1.15 : limbW;
+    ctx.globalAlpha = Math.min(p.c, q.c) * 0.85 + 0.15;
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
     ctx.lineTo(q.x, q.y);
@@ -74,13 +79,12 @@ export function drawSkeleton(
     const p = jointAt(joints, i);
     if (!isPresent(p)) continue;
     const isHot = i === hot;
-    const isCore = i === J.NECK || i === J.MID_HIP || i === J.NOSE;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, isHot ? 7 : isCore ? 5.5 : 4, 0, Math.PI * 2);
-    ctx.fillStyle = isHot ? HOT : isCore ? TEAL : JOINT;
+    ctx.arc(p.x, p.y, isHot ? jointR * 1.35 : jointR, 0, Math.PI * 2);
+    ctx.fillStyle = isHot ? "#E5383B" : openPoseJointCss(i);
     ctx.fill();
     ctx.strokeStyle = STAGE;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1.2, jointR * 0.28);
     ctx.stroke();
 
     if (options.labels) {

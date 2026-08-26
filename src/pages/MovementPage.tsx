@@ -4,9 +4,10 @@ import { useLibrary } from "../hooks/useLibrary";
 import { MovementPlayer } from "../components/MovementPlayer";
 import { KeyframeInspector } from "../components/KeyframeInspector";
 import { SaveForm } from "../components/SaveForm";
-import { emptyKeypoints } from "../pose/joints";
+import { emptyKeypoints, boundsFromFrames } from "../pose/joints";
 import { parseTags } from "../lib/cn";
-import { downloadBlob, slugify, zipMovement } from "../data/exportZip";
+import { downloadBlob, slugify, zipMovement, zipOpenPoseJson } from "../data/exportZip";
+import { recordAvatarWebm } from "../data/exportWebm";
 import type { MovementRecord, SaveDraft } from "../types";
 
 export function MovementPage() {
@@ -18,6 +19,7 @@ export function MovementPage() {
   const [draft, setDraft] = useState<SaveDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [frame, setFrame] = useState(0);
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -81,14 +83,44 @@ export function MovementPage() {
   };
 
   const onExport = async () => {
+    setExportNote("Packing ZIP…");
     const blob = await zipMovement(record);
     downloadBlob(blob, `${slugify(record.name)}.zip`);
+    setExportNote("Saved Dojang ZIP (includes openpose/ JSON).");
+  };
+
+  const onExportOpenPose = async () => {
+    setExportNote("Packing OpenPose JSON…");
+    const blob = await zipOpenPoseJson(record);
+    downloadBlob(blob, `${slugify(record.name)}-openpose.zip`);
+    setExportNote("Saved OpenPose --write_json folder.");
+  };
+
+  const onExportWebm = async () => {
+    setBusy(true);
+    setExportNote("Recording avatar WebM…");
+    try {
+      const blob = await recordAvatarWebm(
+        record.keypoints,
+        record.fps,
+        boundsFromFrames(record.keypoints),
+      );
+      downloadBlob(blob, `${slugify(record.name)}.webm`);
+      setExportNote("Saved avatar WebM.");
+    } catch (err) {
+      setExportNote(err instanceof Error ? err.message : "Could not record WebM.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="space-y-4 pb-8">
       <header>
-        <p className="text-xs uppercase tracking-[0.18em] text-dojang-teal">{record.category}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-dojang-teal">
+          {record.category}
+          {record.source === "openpose" ? " · OpenPose" : record.source === "mediapipe" ? " · MediaPipe" : ""}
+        </p>
         <h1 className="font-display text-4xl text-ink">{record.name}</h1>
         {record.tags.length > 0 && (
           <p className="mt-1 text-xs text-muted">{record.tags.map((t) => `#${t}`).join(" ")}</p>
@@ -118,6 +150,8 @@ export function MovementPage() {
         busy={busy}
       />
 
+      {exportNote && <p className="text-sm text-dojang-teal">{exportNote}</p>}
+
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
@@ -125,6 +159,21 @@ export function MovementPage() {
           className="rounded-2xl bg-dojang-teal/20 py-3 text-sm font-semibold text-dojang-teal"
         >
           Export ZIP
+        </button>
+        <button
+          type="button"
+          onClick={() => void onExportOpenPose()}
+          className="rounded-2xl bg-navy-lift py-3 text-sm font-semibold text-ink"
+        >
+          OpenPose JSON
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onExportWebm()}
+          className="rounded-2xl bg-navy-lift py-3 text-sm font-semibold text-ink disabled:opacity-40"
+        >
+          Avatar WebM
         </button>
         <button
           type="button"
