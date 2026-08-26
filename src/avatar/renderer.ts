@@ -329,32 +329,6 @@ function drawCartoonLimb(
   stampDilatedUnion(ctx, nodes, outline, pad);
   stampLimbUnion(ctx, nodes, fill);
 
-  ctx.save();
-  ctx.globalAlpha *= 0.3;
-  ctx.strokeStyle = shade;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = Math.min(...nodes.map((n) => n.r)) * 0.78;
-  ctx.beginPath();
-  for (let i = 0; i < nodes.length; i++) {
-    const cur = nodes[i];
-    if (!cur) continue;
-    const prev = nodes[i - 1];
-    const next = nodes[i + 1];
-    const along = next
-      ? norm(sub(asPt(next.p), asPt(cur.p)))
-      : prev
-        ? norm(sub(asPt(cur.p), asPt(prev.p)))
-        : { x: 0, y: 1 };
-    const side = perp(along);
-    const hx = cur.p.x + side.x * cur.r * 0.3;
-    const hy = cur.p.y + side.y * cur.r * 0.3;
-    if (i === 0) ctx.moveTo(hx, hy);
-    else ctx.lineTo(hx, hy);
-  }
-  ctx.stroke();
-  ctx.restore();
-
   for (let i = 1; i < nodes.length - 1; i++) {
     const prev = nodes[i - 1];
     const cur = nodes[i];
