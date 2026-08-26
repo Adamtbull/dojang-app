@@ -69,6 +69,19 @@ export function UploadPage() {
     void runExtract(next);
   };
 
+  const loadSample = async () => {
+    setError(null);
+    try {
+      const res = await fetch("/samples/sparring.mp4");
+      if (!res.ok) throw new Error("Could not load the sample clip.");
+      const blob = await res.blob();
+      const sample = new File([blob], "sample-sparring.mp4", { type: "video/mp4" });
+      await runExtract(sample);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load the sample clip.");
+    }
+  };
+
   const save = async () => {
     if (!result || !draft.name.trim()) return;
     setBusy(true);
@@ -137,6 +150,14 @@ export function UploadPage() {
         <p className="mt-1 text-sm text-muted">mp4 · webm · mov · a few seconds is enough</p>
         {file && <p className="mt-3 text-xs text-dojang-teal">{file.name}</p>}
       </label>
+
+      <button
+        type="button"
+        onClick={() => void loadSample()}
+        className="w-full rounded-2xl border border-navy-line bg-navy-card py-3 text-sm font-semibold text-dojang-teal"
+      >
+        Try a 5-second sample clip
+      </button>
 
       {progress && (
         <section className="rounded-2xl border border-navy-line/70 bg-navy-card p-4">
