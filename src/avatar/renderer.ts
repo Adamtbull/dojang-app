@@ -80,41 +80,191 @@ function circle(
   }
 }
 
-function taperedLimb(
+type Pt = { x: number; y: number };
+
+function asPt(p: Pt): Joint {
+  return { x: p.x, y: p.y, c: 1 };
+}
+
+/** How folded a hinge is: 0 straight, 1 fully bent. */
+export function jointBend(a: Pt, b: Pt, c: Pt): number {
+  const u = norm(sub(asPt(b), asPt(a)));
+  const v = norm(sub(asPt(c), asPt(b)));
+  const dot = Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y));
+  return (1 - dot) * 0.5;
+}
+
+function innerBisector(a: Pt, b: Pt, c: Pt): Pt {
+  const toA = norm(sub(asPt(a), asPt(b)));
+  const toC = norm(sub(asPt(c), asPt(b)));
+  const sx = toA.x + toC.x;
+  const sy = toA.y + toC.y;
+  if (Math.hypot(sx, sy) < 0.001) {
+    const along = norm(sub(asPt(c), asPt(a)));
+    return perp(along);
+  }
+  return norm({ x: sx, y: sy });
+}
+
+function extendBone(a: Pt, b: Pt, extraA: number, extraB: number): [Pt, Pt] {
+  const n = norm(sub(asPt(b), asPt(a)));
+  return [add(asPt(a), mul(n, -extraA)), add(asPt(b), mul(n, extraB))];
+}
+
+/** Capsule fill with no stroke — the base cartoon shape. */
+function limbShape(
   ctx: CanvasRenderingContext2D,
-  a: Joint,
-  b: Joint,
+  a: Pt,
+  b: Pt,
   wa: number,
   wb: number,
+  color: string,
+): void {
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
+  ctx.beginPath();
+  ctx.arc(a.x, a.y, Math.max(0.5, wa), angle + Math.PI / 2, angle - Math.PI / 2, false);
+  ctx.arc(b.x, b.y, Math.max(0.5, wb), angle - Math.PI / 2, angle + Math.PI / 2, false);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function shadeLimb(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, wa: number, wb: number, shade: string): void {
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
+  const nx = Math.cos(angle + Math.PI / 2);
+  const ny = Math.sin(angle + Math.PI / 2);
+  ctx.save();
+  ctx.globalAlpha *= 0.36;
+  limbShape(
+    ctx,
+    { x: a.x + nx * wa * 0.18, y: a.y + ny * wa * 0.18 },
+    { x: b.x + nx * wb * 0.18, y: b.y + ny * wb * 0.18 },
+    wa * 0.62,
+    wb * 0.62,
+    shade,
+  );
+  ctx.restore();
+}
+
+/**
+ * Extra meat around a hinge so two capsules read as one cartoon limb.
+ * Inner pad hides the crook hole; outer ellipse stretches like a joint sleeve.
+ */
+function jointSleeve(
+  ctx: CanvasRenderingContext2D,
+  a: Pt,
+  b: Pt,
+  c: Pt,
+  rIn: number,
+  rJoint: number,
+  rOut: number,
+  fill: string,
+  shade: string,
+): void {
+  const bend = jointBend(a, b, c);
+  const r = Math.max(rIn, rJoint, rOut) * (1.04 + bend * 0.22);
+  const inner = innerBisector(a, b, c);
+  const outer = { x: -inner.x, y: -inner.y };
+
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  const cap = add(asPt(b), mul(outer, r * (0.12 + bend * 0.38)));
+  ctx.beginPath();
+  ctx.ellipse(
+    cap.x,
+    cap.y,
+    r * (0.82 + bend * 0.28),
+    r * (0.52 + bend * 0.18),
+    Math.atan2(outer.y, outer.x),
+    0,
+    Math.PI * 2,
+  );
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  const pit = add(asPt(b), mul(inner, r * (0.08 + bend * 0.28)));
+  ctx.beginPath();
+  ctx.arc(pit.x, pit.y, r * (0.5 + bend * 0.32), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.globalAlpha *= 0.28;
+  ctx.beginPath();
+  ctx.ellipse(
+    cap.x + outer.x * r * 0.04,
+    cap.y + outer.y * r * 0.04,
+    r * 0.55,
+    r * 0.28,
+    Math.atan2(outer.y, outer.x),
+    0,
+    Math.PI * 2,
+  );
+  ctx.fillStyle = shade;
+  ctx.fill();
+  ctx.restore();
+
+  if (bend > 0.14) {
+    ctx.save();
+    ctx.globalAlpha *= 0.32;
+    ctx.strokeStyle = shade;
+    ctx.lineWidth = Math.max(1.2, r * 0.1);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(b.x + inner.x * r * 0.12, b.y + inner.y * r * 0.12);
+    ctx.lineTo(b.x + inner.x * r * (0.5 + bend * 0.2), b.y + inner.y * r * (0.5 + bend * 0.2));
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+interface LimbNode {
+  p: Pt;
+  r: number;
+}
+
+/** Outline the chain, fill the shapes, then wrap hinges so seams disappear. */
+function drawCartoonLimb(
+  ctx: CanvasRenderingContext2D,
+  nodes: LimbNode[],
   fill: string,
   shade: string,
   outline: string,
   lineW: number,
 ): void {
-  const angle = Math.atan2(b.y - a.y, b.x - a.x);
-  ctx.beginPath();
-  ctx.arc(a.x, a.y, wa, angle + Math.PI / 2, angle - Math.PI / 2, false);
-  ctx.arc(b.x, b.y, wb, angle - Math.PI / 2, angle + Math.PI / 2, false);
-  ctx.closePath();
-  fillStroke(ctx, fill, outline, lineW);
+  if (nodes.length < 2) return;
+  const pad = lineW * 0.55;
 
-  const nx = Math.cos(angle + Math.PI / 2);
-  const ny = Math.sin(angle + Math.PI / 2);
-  ctx.beginPath();
-  ctx.arc(a.x, a.y, wa, angle, angle + Math.PI, false);
-  ctx.arc(b.x, b.y, wb, angle + Math.PI, angle, false);
-  ctx.closePath();
-  ctx.fillStyle = shade;
-  ctx.globalAlpha = 0.42;
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  const paint = (inflate: number, color: string) => {
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const a = nodes[i];
+      const b = nodes[i + 1];
+      if (!a || !b) continue;
+      const overlap = Math.min(a.r, b.r) * 0.42;
+      const extraA = i === 0 ? 0 : overlap;
+      const extraB = i === nodes.length - 2 ? 0 : overlap;
+      const [p0, p1] = extendBone(a.p, b.p, extraA, extraB);
+      limbShape(ctx, p0, p1, a.r + inflate, b.r + inflate, color);
+    }
+  };
 
-  ctx.beginPath();
-  ctx.arc(a.x + nx * wa * 0.15, a.y + ny * wa * 0.15, Math.max(wa, wb) * 0.92, 0, Math.PI * 2);
-  ctx.fillStyle = fill;
-  ctx.globalAlpha = 0.35;
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  paint(pad, outline);
+  paint(0, fill);
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    if (!a || !b) continue;
+    shadeLimb(ctx, a.p, b.p, a.r, b.r, shade);
+  }
+  for (let i = 1; i < nodes.length - 1; i++) {
+    const prev = nodes[i - 1];
+    const cur = nodes[i];
+    const next = nodes[i + 1];
+    if (!prev || !cur || !next) continue;
+    jointSleeve(ctx, prev.p, cur.p, next.p, prev.r, cur.r, next.r, fill, shade);
+  }
 }
 
 function drawFist(
@@ -215,16 +365,31 @@ function drawLeg(
   ctx.globalAlpha = alpha;
   const tone = giTone(far);
   const thighW = scale * 0.29;
-  const kneeW = scale * 0.22;
-  const calfW = scale * 0.185;
-  const ankleW = scale * 0.12;
+  const kneeW = scale * 0.235;
+  const ankleW = scale * 0.125;
   const line = Math.max(1.6, scale * 0.028);
 
   if (isPresent(ankle)) {
     drawFoot(ctx, ankle, heel, big, small, line);
-    taperedLimb(ctx, knee, ankle, calfW, ankleW, tone.fill, tone.shade, PALETTE.outline, line);
   }
-  taperedLimb(ctx, hip, knee, thighW, kneeW, tone.fill, tone.shade, PALETTE.outline, line);
+
+  const nodes: LimbNode[] = [
+    { p: hip, r: thighW },
+    { p: knee, r: kneeW },
+  ];
+  if (isPresent(ankle)) nodes.push({ p: ankle, r: ankleW });
+  drawCartoonLimb(ctx, nodes, tone.fill, tone.shade, PALETTE.outline, line);
+
+  ctx.beginPath();
+  ctx.arc(hip.x, hip.y, thighW * 0.92, 0, Math.PI * 2);
+  ctx.fillStyle = tone.fill;
+  ctx.fill();
+  if (isPresent(ankle)) {
+    ctx.beginPath();
+    ctx.arc(ankle.x, ankle.y, ankleW * 1.05, 0, Math.PI * 2);
+    ctx.fillStyle = tone.fill;
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -242,17 +407,30 @@ function drawArm(
   ctx.globalAlpha = alpha;
   const tone = giTone(far);
   const upper = scale * 0.2;
-  const elbowW = scale * 0.165;
-  const forearm = scale * 0.145;
-  const wristW = scale * 0.11;
+  const elbowW = scale * 0.175;
+  const wristW = scale * 0.115;
   const line = Math.max(1.6, scale * 0.028);
   const fist = scale * 0.095;
 
+  const nodes: LimbNode[] = [
+    { p: shoulder, r: upper },
+    { p: elbow, r: elbowW },
+  ];
+  if (isPresent(wrist)) nodes.push({ p: wrist, r: wristW });
+  drawCartoonLimb(ctx, nodes, tone.fill, tone.shade, PALETTE.outline, line);
+
+  ctx.beginPath();
+  ctx.arc(shoulder.x, shoulder.y, upper * 0.95, 0, Math.PI * 2);
+  ctx.fillStyle = tone.fill;
+  ctx.fill();
+
   if (isPresent(wrist)) {
-    taperedLimb(ctx, elbow, wrist, forearm, wristW, tone.fill, tone.shade, PALETTE.outline, line);
+    ctx.beginPath();
+    ctx.arc(wrist.x, wrist.y, wristW * 1.08, 0, Math.PI * 2);
+    ctx.fillStyle = tone.fill;
+    ctx.fill();
     drawFist(ctx, wrist, elbow, fist);
   }
-  taperedLimb(ctx, shoulder, elbow, upper, elbowW, tone.fill, tone.shade, PALETTE.outline, line);
   ctx.restore();
 }
 
