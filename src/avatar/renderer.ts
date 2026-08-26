@@ -271,8 +271,8 @@ function stampLimbFill(ctx: CanvasRenderingContext2D, nodes: LimbNode[], color: 
     const a = nodes[i];
     const b = nodes[i + 1];
     if (!a || !b) continue;
-    const extraA = i === 0 ? a.r * 0.3 : -hinge * 0.55;
-    const extraB = i === nodes.length - 2 ? b.r * 0.18 : -hinge * 0.55;
+    const extraA = i === 0 ? a.r * 0.3 : -(Math.max(a.r, b.r, hinge) + 4);
+    const extraB = i === nodes.length - 2 ? b.r * 0.18 : -(Math.max(a.r, b.r, hinge) + 4);
     const [p0, p1] = extendBone(a.p, b.p, extraA, extraB);
     if (Math.hypot(p1.x - p0.x, p1.y - p0.y) < 4) continue;
     limbShape(ctx, p0, p1, a.r, b.r, color);
