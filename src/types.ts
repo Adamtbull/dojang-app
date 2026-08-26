@@ -9,6 +9,8 @@ export type Category = (typeof CATEGORIES)[number];
 
 export type ViewMode = "avatar" | "skeleton" | "split";
 
+export type PoseSource = "mediapipe" | "openpose" | "dojang";
+
 export interface Joint {
   x: number;
   y: number;
@@ -36,6 +38,7 @@ export interface MovementRecord {
   video?: Blob;
   createdAt: number;
   updatedAt: number;
+  source?: PoseSource;
 }
 
 export interface ExtractProgress {

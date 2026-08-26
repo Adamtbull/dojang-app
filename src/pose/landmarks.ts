@@ -59,35 +59,70 @@ export const JOINT_NAMES: readonly string[] = [
   "RHeel",
 ];
 
-/** BODY_25 bone pairs for skeleton view. */
+/**
+ * Official OpenPose BODY_25 render pairs
+ * (POSE_BODY_25_PAIRS_RENDER_GPU in openpose/pose/poseParametersRender.hpp).
+ */
 export const BONES: readonly [number, number][] = [
-  [J.NOSE, J.NECK],
+  [J.NECK, J.MID_HIP],
   [J.NECK, J.R_SHOULDER],
+  [J.NECK, J.L_SHOULDER],
   [J.R_SHOULDER, J.R_ELBOW],
   [J.R_ELBOW, J.R_WRIST],
-  [J.NECK, J.L_SHOULDER],
   [J.L_SHOULDER, J.L_ELBOW],
   [J.L_ELBOW, J.L_WRIST],
-  [J.NECK, J.MID_HIP],
   [J.MID_HIP, J.R_HIP],
   [J.R_HIP, J.R_KNEE],
   [J.R_KNEE, J.R_ANKLE],
   [J.MID_HIP, J.L_HIP],
   [J.L_HIP, J.L_KNEE],
   [J.L_KNEE, J.L_ANKLE],
+  [J.NECK, J.NOSE],
   [J.NOSE, J.R_EYE],
-  [J.NOSE, J.L_EYE],
   [J.R_EYE, J.R_EAR],
+  [J.NOSE, J.L_EYE],
   [J.L_EYE, J.L_EAR],
-  [J.R_ANKLE, J.R_HEEL],
-  [J.R_ANKLE, J.R_BIG_TOE],
-  [J.R_BIG_TOE, J.R_SMALL_TOE],
-  [J.R_HEEL, J.R_BIG_TOE],
-  [J.L_ANKLE, J.L_HEEL],
   [J.L_ANKLE, J.L_BIG_TOE],
   [J.L_BIG_TOE, J.L_SMALL_TOE],
-  [J.L_HEEL, J.L_BIG_TOE],
+  [J.L_ANKLE, J.L_HEEL],
+  [J.R_ANKLE, J.R_BIG_TOE],
+  [J.R_BIG_TOE, J.R_SMALL_TOE],
+  [J.R_ANKLE, J.R_HEEL],
 ];
+
+/** RGB triples per BODY_25 joint (POSE_BODY_25_COLORS_RENDER_GPU). */
+export const OPENPOSE_JOINT_COLORS: readonly [number, number, number][] = [
+  [255, 0, 85],
+  [255, 0, 0],
+  [255, 85, 0],
+  [255, 170, 0],
+  [255, 255, 0],
+  [170, 255, 0],
+  [85, 255, 0],
+  [0, 255, 0],
+  [255, 0, 0],
+  [0, 255, 85],
+  [0, 255, 170],
+  [0, 255, 255],
+  [0, 170, 255],
+  [0, 85, 255],
+  [0, 0, 255],
+  [255, 0, 170],
+  [170, 0, 255],
+  [255, 0, 255],
+  [85, 0, 255],
+  [0, 0, 255],
+  [0, 0, 255],
+  [0, 0, 255],
+  [0, 255, 255],
+  [0, 255, 255],
+  [0, 255, 255],
+];
+
+export function openPoseJointCss(index: number): string {
+  const rgb = OPENPOSE_JOINT_COLORS[index] ?? [232, 237, 247];
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
 
 export const LIMB_JOINTS = {
   rightArm: [J.R_SHOULDER, J.R_ELBOW, J.R_WRIST] as const,

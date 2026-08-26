@@ -41,6 +41,17 @@ export function GuidePage() {
           </li>
         ))}
       </ol>
+      <section className="space-y-2 rounded-2xl border border-navy-line/70 bg-navy-card p-4">
+        <h2 className="font-semibold">OpenPose BODY_25</h2>
+        <p className="text-sm leading-relaxed text-muted">
+          Dojang stores the same 25-joint layout as OpenPose. On a phone, pose is read with MediaPipe
+          and converted to BODY_25. The OpenPose C++ master zip cannot run in a browser — it needs
+          CUDA/Caffe. If you already ran OpenPose on a computer, import the{" "}
+          <code className="text-ink">--write_json</code> folder (files named{" "}
+          <code className="text-ink">*_keypoints.json</code> with <code className="text-ink">pose_keypoints_2d</code>
+          ). Exports include that same folder so desktop OpenPose tools can read Dojang data.
+        </p>
+      </section>
       <p className="rounded-2xl bg-navy-card p-4 text-xs leading-relaxed text-muted">
         Everything runs on this device. After the first load, the model and app cache in your
         browser so you can extract movements offline.

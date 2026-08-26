@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CATEGORIES } from "../types";
 import { useLibrary } from "../hooks/useLibrary";
 import { MovementCard } from "../components/MovementCard";
+import { ImportArchiveControl } from "../components/ImportArchive";
 import { cn } from "../lib/cn";
 import { Link } from "react-router-dom";
 
@@ -26,6 +27,8 @@ export function LibraryPage() {
         <h1 className="font-display text-4xl text-ink">Library</h1>
         <p className="text-sm text-muted">{movements.length} saved on this device</p>
       </header>
+
+      <ImportArchiveControl />
 
       <input
         value={query}

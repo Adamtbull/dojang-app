@@ -9,6 +9,7 @@ import { avatarFrameToBlob } from "../avatar/renderer";
 import { mostDynamicFrame, boundsFromFrames } from "../pose/joints";
 import { parseTags } from "../lib/cn";
 import type { ExtractProgress, ExtractResult, SaveDraft } from "../types";
+import { ImportArchiveControl } from "../components/ImportArchive";
 
 const ACCEPT = "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov";
 
@@ -109,6 +110,7 @@ export function UploadPage() {
         video: result.videoBlob,
         createdAt: now,
         updatedAt: now,
+        source: "mediapipe",
       });
       navigate(`/library/${id}`);
     } catch (err) {
@@ -158,6 +160,8 @@ export function UploadPage() {
       >
         Try a 5-second sample clip
       </button>
+
+      <ImportArchiveControl compact />
 
       {progress && (
         <section className="rounded-2xl border border-navy-line/70 bg-navy-card p-4">
