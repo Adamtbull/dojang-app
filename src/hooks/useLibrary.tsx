@@ -15,6 +15,7 @@ interface LibraryContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   upsert: (record: MovementRecord) => Promise<void>;
+  upsertMany: (records: MovementRecord[]) => Promise<void>;
   remove: (id: string) => Promise<void>;
   byId: (id: string) => Promise<MovementRecord | undefined>;
 }
@@ -40,6 +41,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const upsertMany = useCallback(async (records: MovementRecord[]) => {
+    for (const record of records) await saveMovement(record);
+    await refresh();
+  }, [refresh]);
+
   const remove = useCallback(async (id: string) => {
     await deleteMovement(id);
     await refresh();
@@ -48,8 +54,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const byId = useCallback(async (id: string) => getMovement(id), []);
 
   const value = useMemo(
-    () => ({ movements, loading, refresh, upsert, remove, byId }),
-    [movements, loading, refresh, upsert, remove, byId],
+    () => ({ movements, loading, refresh, upsert, upsertMany, remove, byId }),
+    [movements, loading, refresh, upsert, upsertMany, remove, byId],
   );
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;

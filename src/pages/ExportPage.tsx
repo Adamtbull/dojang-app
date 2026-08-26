@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLibrary } from "../hooks/useLibrary";
-import { downloadBlob, slugify, zipLibrary, zipMovement } from "../data/exportZip";
+import { downloadBlob, slugify, zipLibrary, zipMovement, zipOpenPoseJson } from "../data/exportZip";
+import { ImportArchiveControl } from "../components/ImportArchive";
 
 export function ExportPage() {
   const { movements } = useLibrary();
@@ -23,14 +24,26 @@ export function ExportPage() {
     setStatus(`Saved ${name}.`);
   };
 
+  const exportOpenPose = async (id: string, name: string) => {
+    const row = movements.find((m) => m.id === id);
+    if (!row) return;
+    setStatus(`Packing OpenPose JSON for ${name}…`);
+    const blob = await zipOpenPoseJson(row);
+    downloadBlob(blob, `${slugify(name)}-openpose.zip`);
+    setStatus(`Saved OpenPose JSON for ${name}.`);
+  };
+
   return (
     <div className="space-y-4 pb-6">
       <header>
         <h1 className="font-display text-4xl text-ink">Export</h1>
         <p className="text-sm text-muted">
-          ZIP files include manifest.json, metadata.json, and per-frame BODY_25 JSON.
+          Dojang ZIPs include per-frame BODY_25 JSON plus an <code className="text-ink">openpose/</code> folder
+          that matches OpenPose <code className="text-ink">--write_json</code>.
         </p>
       </header>
+
+      <ImportArchiveControl />
 
       <button
         type="button"
@@ -47,21 +60,30 @@ export function ExportPage() {
         {movements.map((m) => (
           <li
             key={m.id}
-            className="flex items-center justify-between rounded-2xl border border-navy-line/70 bg-navy-card px-4 py-3"
+            className="flex items-center justify-between gap-2 rounded-2xl border border-navy-line/70 bg-navy-card px-4 py-3"
           >
-            <div>
-              <p className="text-sm font-semibold">{m.name}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{m.name}</p>
               <p className="text-[11px] uppercase tracking-wider text-muted">
                 {m.category} · {m.keypoints.length} frames
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void exportOne(m.id, m.name)}
-              className="rounded-xl bg-navy-lift px-3 py-2 text-xs font-semibold text-dojang-teal"
-            >
-              ZIP
-            </button>
+            <div className="flex shrink-0 gap-1">
+              <button
+                type="button"
+                onClick={() => void exportOne(m.id, m.name)}
+                className="rounded-xl bg-navy-lift px-3 py-2 text-xs font-semibold text-dojang-teal"
+              >
+                ZIP
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportOpenPose(m.id, m.name)}
+                className="rounded-xl bg-navy-lift px-3 py-2 text-xs font-semibold text-ink"
+              >
+                OpenPose
+              </button>
+            </div>
           </li>
         ))}
       </ul>

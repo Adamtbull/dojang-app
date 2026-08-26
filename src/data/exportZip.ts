@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { JOINT_NAMES, KEYPOINT_LENGTH } from "../pose/landmarks";
+import { openPoseFrameDocument, openPoseFrameFileName } from "../pose/openpose";
 import type { MovementRecord } from "../types";
 
 export function slugify(name: string): string {
@@ -48,11 +49,23 @@ function movementMeta(m: MovementRecord) {
   };
 }
 
+function writeOpenPoseFrames(zip: JSZip, m: MovementRecord, folder = "openpose"): void {
+  m.keypoints.forEach((kp, i) => {
+    const name = openPoseFrameFileName(i);
+    const path = folder ? `${folder.replace(/\/$/, "")}/${name}` : name;
+    zip.file(
+      path,
+      JSON.stringify(openPoseFrameDocument(kp, { width: m.width, height: m.height }), null, 2),
+    );
+  });
+}
+
 function writeMovementFiles(zip: JSZip, m: MovementRecord): void {
   zip.file("metadata.json", JSON.stringify(movementMeta(m), null, 2));
   m.keypoints.forEach((kp, i) => {
     zip.file(`frames/${pad(i)}.json`, JSON.stringify(framePayload(kp, i), null, 2));
   });
+  writeOpenPoseFrames(zip, m);
 }
 
 export async function zipMovement(m: MovementRecord): Promise<Blob> {
@@ -64,10 +77,20 @@ export async function zipMovement(m: MovementRecord): Promise<Blob> {
     type: "movement",
     format: "BODY_25",
     movement: movementMeta(m),
-    files: ["metadata.json", ...m.keypoints.map((_, i) => `frames/${pad(i)}.json`)],
+    files: [
+      "metadata.json",
+      ...m.keypoints.map((_, i) => `frames/${pad(i)}.json`),
+      ...m.keypoints.map((_, i) => `openpose/${openPoseFrameFileName(i)}`),
+    ],
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
   writeMovementFiles(zip, m);
+  return zip.generateAsync({ type: "blob" });
+}
+
+export async function zipOpenPoseJson(m: MovementRecord): Promise<Blob> {
+  const zip = new JSZip();
+  writeOpenPoseFrames(zip, m, "");
   return zip.generateAsync({ type: "blob" });
 }
 
@@ -95,6 +118,10 @@ export async function zipLibrary(movements: MovementRecord[]): Promise<Blob> {
     folder.file("metadata.json", JSON.stringify(movementMeta(m), null, 2));
     m.keypoints.forEach((kp, i) => {
       folder.file(`frames/${pad(i)}.json`, JSON.stringify(framePayload(kp, i), null, 2));
+      folder.file(
+        `openpose/${openPoseFrameFileName(i)}`,
+        JSON.stringify(openPoseFrameDocument(kp, { width: m.width, height: m.height }), null, 2),
+      );
     });
   }
   return zip.generateAsync({ type: "blob" });

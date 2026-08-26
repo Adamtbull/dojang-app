@@ -23,7 +23,7 @@ export function KeyframeInspector({
     <section className="rounded-2xl border border-navy-line/70 bg-navy-card p-4">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-display text-2xl text-ink">Keyframe inspector</h2>
-        <span className="text-xs text-muted">BODY_25 · frame {frame}</span>
+        <span className="text-xs text-muted">BODY_25 · OpenPose · frame {frame}</span>
       </div>
       <pre className="max-h-56 overflow-auto rounded-xl bg-navy p-3 text-[11px] leading-relaxed text-dojang-teal">
         {JSON.stringify({ frame, format: "BODY_25", keypoints, joints: named }, null, 2)}
