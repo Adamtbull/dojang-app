@@ -91,37 +91,30 @@ function taperedLimb(
   outline: string,
   lineW: number,
 ): void {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
-  const p1 = { x: a.x + nx * wa, y: a.y + ny * wa };
-  const p2 = { x: a.x - nx * wa, y: a.y - ny * wa };
-  const p3 = { x: b.x - nx * wb, y: b.y - ny * wb };
-  const p4 = { x: b.x + nx * wb, y: b.y + ny * wb };
-
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
   ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p4.x, p4.y);
-  ctx.lineTo(p3.x, p3.y);
-  ctx.lineTo(p2.x, p2.y);
+  ctx.arc(a.x, a.y, wa, angle + Math.PI / 2, angle - Math.PI / 2, false);
+  ctx.arc(b.x, b.y, wb, angle - Math.PI / 2, angle + Math.PI / 2, false);
   ctx.closePath();
   fillStroke(ctx, fill, outline, lineW);
 
+  const nx = Math.cos(angle + Math.PI / 2);
+  const ny = Math.sin(angle + Math.PI / 2);
   ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.lineTo(p3.x, p3.y);
-  ctx.lineTo(b.x, b.y);
+  ctx.arc(a.x, a.y, wa, angle, angle + Math.PI, false);
+  ctx.arc(b.x, b.y, wb, angle + Math.PI, angle, false);
   ctx.closePath();
   ctx.fillStyle = shade;
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = 0.42;
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  circle(ctx, a.x, a.y, wa, fill, outline, lineW);
-  circle(ctx, b.x, b.y, wb, fill, outline, lineW);
+  ctx.beginPath();
+  ctx.arc(a.x + nx * wa * 0.15, a.y + ny * wa * 0.15, Math.max(wa, wb) * 0.92, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.globalAlpha = 0.35;
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 function drawFist(
@@ -230,7 +223,6 @@ function drawLeg(
   if (isPresent(ankle)) {
     drawFoot(ctx, ankle, heel, big, small, line);
     taperedLimb(ctx, knee, ankle, calfW, ankleW, tone.fill, tone.shade, PALETTE.outline, line);
-    circle(ctx, knee.x, knee.y, kneeW, tone.fill, PALETTE.outline, line);
   }
   taperedLimb(ctx, hip, knee, thighW, kneeW, tone.fill, tone.shade, PALETTE.outline, line);
   ctx.restore();
