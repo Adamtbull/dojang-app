@@ -140,23 +140,6 @@ function limbShape(
   ctx.fill();
 }
 
-function shadeLimb(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, wa: number, wb: number, shade: string): void {
-  const angle = Math.atan2(b.y - a.y, b.x - a.x);
-  const nx = Math.cos(angle + Math.PI / 2);
-  const ny = Math.sin(angle + Math.PI / 2);
-  ctx.save();
-  ctx.globalAlpha *= 0.36;
-  limbShape(
-    ctx,
-    { x: a.x + nx * wa * 0.18, y: a.y + ny * wa * 0.18 },
-    { x: b.x + nx * wb * 0.18, y: b.y + ny * wb * 0.18 },
-    wa * 0.62,
-    wb * 0.62,
-    shade,
-  );
-  ctx.restore();
-}
-
 /**
  * How large the extra wrap at a hinge is. Grows as the joint folds so a kick
  * gets a stretched cartoon sleeve instead of two separate capsules.
@@ -239,36 +222,17 @@ function shadeHinge(
   shade: string,
 ): void {
   const bend = jointBend(a, b, c);
-  if (bend < 0.08) return;
+  if (bend < 0.16) return;
   const puff = hingeWrapRadius(rIn, rJoint, rOut, bend, 0);
   const inner = innerBisector(a, b, c);
-  const outer = { x: -inner.x, y: -inner.y };
-  const cap = add(asPt(b), mul(outer, puff * (0.18 + bend * 0.4)));
-
   ctx.save();
-  ctx.globalAlpha *= 0.28;
-  ctx.beginPath();
-  ctx.ellipse(
-    cap.x + outer.x * puff * 0.04,
-    cap.y + outer.y * puff * 0.04,
-    puff * 0.58,
-    puff * 0.3,
-    Math.atan2(outer.y, outer.x),
-    0,
-    Math.PI * 2,
-  );
-  ctx.fillStyle = shade;
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha *= 0.34;
+  ctx.globalAlpha *= 0.3;
   ctx.strokeStyle = shade;
-  ctx.lineWidth = Math.max(1.2, puff * 0.1);
+  ctx.lineWidth = Math.max(1.2, puff * 0.09);
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(b.x + inner.x * puff * 0.1, b.y + inner.y * puff * 0.1);
-  ctx.lineTo(b.x + inner.x * puff * (0.48 + bend * 0.22), b.y + inner.y * puff * (0.48 + bend * 0.22));
+  ctx.moveTo(b.x + inner.x * puff * 0.12, b.y + inner.y * puff * 0.12);
+  ctx.lineTo(b.x + inner.x * puff * (0.42 + bend * 0.18), b.y + inner.y * puff * (0.42 + bend * 0.18));
   ctx.stroke();
   ctx.restore();
 }
@@ -365,14 +329,32 @@ function drawCartoonLimb(
   stampDilatedUnion(ctx, nodes, outline, pad);
   stampLimbUnion(ctx, nodes, fill);
 
-  for (let i = 0; i < nodes.length - 1; i++) {
-    const a = nodes[i];
-    const b = nodes[i + 1];
-    if (!a || !b) continue;
-    const inset = Math.min(a.r, b.r) * 0.28;
-    const [s0, s1] = extendBone(a.p, b.p, -inset, -inset);
-    shadeLimb(ctx, s0, s1, a.r * 0.92, b.r * 0.92, shade);
+  ctx.save();
+  ctx.globalAlpha *= 0.3;
+  ctx.strokeStyle = shade;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.min(...nodes.map((n) => n.r)) * 0.78;
+  ctx.beginPath();
+  for (let i = 0; i < nodes.length; i++) {
+    const cur = nodes[i];
+    if (!cur) continue;
+    const prev = nodes[i - 1];
+    const next = nodes[i + 1];
+    const along = next
+      ? norm(sub(asPt(next.p), asPt(cur.p)))
+      : prev
+        ? norm(sub(asPt(cur.p), asPt(prev.p)))
+        : { x: 0, y: 1 };
+    const side = perp(along);
+    const hx = cur.p.x + side.x * cur.r * 0.3;
+    const hy = cur.p.y + side.y * cur.r * 0.3;
+    if (i === 0) ctx.moveTo(hx, hy);
+    else ctx.lineTo(hx, hy);
   }
+  ctx.stroke();
+  ctx.restore();
+
   for (let i = 1; i < nodes.length - 1; i++) {
     const prev = nodes[i - 1];
     const cur = nodes[i];
@@ -569,7 +551,8 @@ function drawPantsBridge(
     mid,
     rDown,
   ]);
-  fillStroke(ctx, tone.fill, PALETTE.outline, Math.max(1.5, scale * 0.024));
+  ctx.fillStyle = tone.fill;
+  ctx.fill();
 }
 
 function drawJacket(
@@ -923,9 +906,9 @@ export function drawAvatar(
     );
   };
 
+  drawPantsBridge(ctx, lHip, rHip, lKnee, rKnee, scale);
   if (!leftRaised) paintLeg(true, !farIsRight);
   if (!rightRaised) paintLeg(false, farIsRight);
-  drawPantsBridge(ctx, lHip, rHip, lKnee, rKnee, scale);
 
   paintArm(!farIsRight, true);
   drawJacket(ctx, joints, scale);
