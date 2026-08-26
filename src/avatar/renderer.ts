@@ -169,7 +169,7 @@ export function hingeWrapRadius(
   inflate = 0,
 ): number {
   const r = Math.max(rIn, rJoint, rOut) + inflate;
-  return r * (1.08 + bend * 0.42);
+  return r * (1.16 + bend * 0.5);
 }
 
 /**
@@ -219,7 +219,7 @@ function wrapHinge(
     ctx.strokeStyle = color;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.lineWidth = puff * (1.02 + bend * 0.28);
+    ctx.lineWidth = puff * (1.12 + bend * 0.35);
     ctx.beginPath();
     ctx.moveTo(midA.x, midA.y);
     ctx.quadraticCurveTo(peak.x, peak.y, midC.x, midC.y);
@@ -279,62 +279,76 @@ interface LimbNode {
 }
 
 /**
- * Union of the simple limb shapes plus the extra joint wraps. Used both at
- * true size (fill) and inflated (silhouette) so we can punch a single outline.
+ * Simple volumes plus extra joint wraps. Capsules are the starting shapes;
+ * the hose and hinge wrap hide the puppet seams the way a cartoon sleeve does.
  */
 function stampLimbUnion(
   ctx: CanvasRenderingContext2D,
   nodes: LimbNode[],
   color: string,
-  inflate: number,
 ): void {
   if (nodes.length < 2) return;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    if (!a || !b) continue;
+    ctx.lineWidth = a.r + b.r;
+    ctx.beginPath();
+    ctx.moveTo(a.p.x, a.p.y);
+    ctx.lineTo(b.p.x, b.p.y);
+    ctx.stroke();
+  }
+  ctx.restore();
 
   for (let i = 0; i < nodes.length - 1; i++) {
     const a = nodes[i];
     const b = nodes[i + 1];
     if (!a || !b) continue;
-    const overlap = Math.min(a.r, b.r) * 0.78 + inflate;
-    const root = i === 0 ? Math.max(overlap, a.r * 0.4) : overlap;
-    const tip = i === nodes.length - 2 ? Math.max(overlap * 0.45, b.r * 0.2) : overlap;
+    const overlap = Math.min(a.r, b.r) * 0.82;
+    const root = i === 0 ? Math.max(overlap, a.r * 0.45) : overlap;
+    const tip = i === nodes.length - 2 ? Math.max(overlap * 0.4, b.r * 0.22) : overlap;
     const [p0, p1] = extendBone(a.p, b.p, root, tip);
-    limbShape(ctx, p0, p1, a.r + inflate, b.r + inflate, color);
+    limbShape(ctx, p0, p1, a.r, b.r, color);
   }
 
   const first = nodes[0];
   const last = nodes[nodes.length - 1];
-  if (first) fillDisk(ctx, first.p, first.r + inflate, color);
-  if (last) fillDisk(ctx, last.p, last.r * 1.05 + inflate, color);
+  if (first) fillDisk(ctx, first.p, first.r, color);
+  if (last) fillDisk(ctx, last.p, last.r * 1.06, color);
 
   for (let i = 1; i < nodes.length - 1; i++) {
     const prev = nodes[i - 1];
     const cur = nodes[i];
     const next = nodes[i + 1];
     if (!prev || !cur || !next) continue;
-    wrapHinge(ctx, prev.p, cur.p, next.p, prev.r, cur.r, next.r, color, inflate);
+    wrapHinge(ctx, prev.p, cur.p, next.p, prev.r, cur.r, next.r, color, 0);
   }
 }
 
-let limbOutlineScratch: HTMLCanvasElement | null = null;
-
-function limbOutlineContext(width: number, height: number): CanvasRenderingContext2D | null {
-  if (typeof document === "undefined" || width < 2 || height < 2) return null;
-  if (!limbOutlineScratch) limbOutlineScratch = document.createElement("canvas");
-  if (limbOutlineScratch.width !== width || limbOutlineScratch.height !== height) {
-    limbOutlineScratch.width = width;
-    limbOutlineScratch.height = height;
+/** Draw the limb union offset in a ring so the later fill pass leaves one outline. */
+function stampDilatedUnion(
+  ctx: CanvasRenderingContext2D,
+  nodes: LimbNode[],
+  color: string,
+  radius: number,
+): void {
+  const steps = 20;
+  for (let i = 0; i < steps; i++) {
+    const ang = (Math.PI * 2 * i) / steps;
+    ctx.save();
+    ctx.translate(Math.cos(ang) * radius, Math.sin(ang) * radius);
+    stampLimbUnion(ctx, nodes, color);
+    ctx.restore();
   }
-  const sctx = limbOutlineScratch.getContext("2d");
-  if (!sctx) return null;
-  sctx.setTransform(1, 0, 0, 1, 0, 0);
-  sctx.globalCompositeOperation = "source-over";
-  sctx.globalAlpha = 1;
-  sctx.clearRect(0, 0, width, height);
-  return sctx;
 }
 
 /**
- * Cartoon limb: draw the tapered shapes, wrap extra volume over the hinges,
+ * Cartoon limb: start with tapered shapes, wrap extra volume over the hinges,
  * then ink only the outer silhouette so elbows/knees never show a puppet gap.
  */
 function drawCartoonLimb(
@@ -346,47 +360,24 @@ function drawCartoonLimb(
   lineW: number,
 ): void {
   if (nodes.length < 2) return;
-  const pad = Math.max(1.8, lineW);
+  const pad = Math.max(2, lineW);
 
-  const sctx = limbOutlineContext(ctx.canvas.width, ctx.canvas.height);
-  if (sctx && limbOutlineScratch) {
-    stampLimbUnion(sctx, nodes, outline, pad);
-    sctx.globalCompositeOperation = "destination-out";
-    stampLimbUnion(sctx, nodes, "#000000", 0);
-    sctx.globalCompositeOperation = "source-over";
+  stampDilatedUnion(ctx, nodes, outline, pad);
+  stampLimbUnion(ctx, nodes, fill);
 
-    stampLimbUnion(ctx, nodes, fill, 0);
-    for (let i = 0; i < nodes.length - 1; i++) {
-      const a = nodes[i];
-      const b = nodes[i + 1];
-      if (!a || !b) continue;
-      shadeLimb(ctx, a.p, b.p, a.r, b.r, shade);
-    }
-    for (let i = 1; i < nodes.length - 1; i++) {
-      const prev = nodes[i - 1];
-      const cur = nodes[i];
-      const next = nodes[i + 1];
-      if (!prev || !cur || !next) continue;
-      shadeHinge(ctx, prev.p, cur.p, next.p, prev.r, cur.r, next.r, shade);
-    }
-    ctx.drawImage(limbOutlineScratch, 0, 0);
-    return;
-  }
-
-  stampLimbUnion(ctx, nodes, outline, pad);
-  stampLimbUnion(ctx, nodes, fill, 0);
   for (let i = 0; i < nodes.length - 1; i++) {
     const a = nodes[i];
     const b = nodes[i + 1];
     if (!a || !b) continue;
-    shadeLimb(ctx, a.p, b.p, a.r, b.r, shade);
+    const inset = Math.min(a.r, b.r) * 0.28;
+    const [s0, s1] = extendBone(a.p, b.p, -inset, -inset);
+    shadeLimb(ctx, s0, s1, a.r * 0.92, b.r * 0.92, shade);
   }
   for (let i = 1; i < nodes.length - 1; i++) {
     const prev = nodes[i - 1];
     const cur = nodes[i];
     const next = nodes[i + 1];
     if (!prev || !cur || !next) continue;
-    wrapHinge(ctx, prev.p, cur.p, next.p, prev.r, cur.r, next.r, fill, pad);
     shadeHinge(ctx, prev.p, cur.p, next.p, prev.r, cur.r, next.r, shade);
   }
 }
